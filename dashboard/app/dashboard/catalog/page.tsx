@@ -1,16 +1,15 @@
+export const dynamic = 'force-dynamic';
 import { PlusCircle, Database } from 'lucide-react';
 
-// Esta función se conecta a tu Motor en Render
 async function getProducts() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://mi-alacena-backend.onrender.com/api/v1';
   try {
-    // Intentamos buscar la ruta de productos 
     const res = await fetch(`${apiUrl}/products`, { cache: 'no-store' });
     if (!res.ok) return [];
     return res.json();
   } catch (error) {
     console.error("Error conectando al motor:", error);
-    return []; // Si no hay productos o hay error, devolvemos catálogo vacío
+    return []; 
   }
 }
 
@@ -23,7 +22,7 @@ export default async function CatalogManager() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Catálogo de Productos</h1>
           <p className="text-sm text-green-600 flex items-center gap-1 mt-1">
-            <Database size={14} /> Conectado a Servidor de Producción
+            <Database size={14} /> Conectado a Servidor de Producción (En vivo)
           </p>
         </div>
         <button className="bg-blue-600 text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-blue-700">
