@@ -11,6 +11,6 @@
     "mercadopago": "^2.0.0"
   },
   "devDependencies": {
-    "prisma": "^5.0.0"
+    "prisma": "^5.22.0"
   }
 }

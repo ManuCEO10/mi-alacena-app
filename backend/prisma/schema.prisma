@@ -5,22 +5,77 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PENDING_PREPARATION
+  PICKING_IN_PROGRESS
+  READY_FOR_DISPATCH
+  IN_TRANSIT
+  DELIVERED
+  DELIVERY_FAILED        
+  RETURNED_TO_WAREHOUSE  
+  CANCELLED
+}
+
+model SystemConfig {
+  id                     Int      @id @default(autoincrement())
+  baseDeliveryFee        Decimal  @db.Decimal(10, 2)
+  extraCostPerKg         Decimal  @db.Decimal(10, 2)
+  subscriberMaxMonthlyKg Decimal  @db.Decimal(8, 2)
+  standardMinOrderValue  Decimal  @db.Decimal(10, 2)
+  updatedAt              DateTime @updatedAt
 }
 
 model User {
   id               Int                @id @default(autoincrement())
   email            String             @unique
-  pushToken        String?
+  isSubscriber     Boolean            @default(false)
+  aceptaReemplazos Boolean            @default(true)
+  pushToken        String?            
   inventory        VirtualInventory[]
   withdrawals      WithdrawalOrder[]
 }
 
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  products    Product[]
+}
+
+model Brand {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  products Product[]
+}
+
 model Product {
-  id            Int     @id @default(autoincrement())
-  name          String
-  sku           String  @unique
-  physicalStock Int     @default(0)
-  virtualInventories VirtualInventory[]
+  id                   Int       @id @default(autoincrement())
+  name                 String
+  sku                  String    @unique
+  barcode              String?   @unique 
+  ncmCode              String?   
+  weightKg             Decimal   @db.Decimal(5, 2)
+  volumeCm3            Decimal   @db.Decimal(10, 2)
+  unitsPerBox          Int       @default(1) 
+  minimumOrderQuantity Int       @default(1) 
+  requiresColdChain    Boolean   @default(false)
+  expirationDate       DateTime? 
+  physicalStock        Int       @default(0)
+
+  categoryId           Int?
+  category             Category? @relation(fields: [categoryId], references: [id])
+  brandId              Int?
+  brand                Brand?    @relation(fields: [brandId], references: [id])
+  
+  virtualInventories   VirtualInventory[]
+  originalFor          ProductSubstitute[] @relation("OriginalProduct")
+  substituteFor        ProductSubstitute[] @relation("SubstituteProduct")
+  requestedItems       WithdrawalItem[]    @relation("RequestedItem")
+  deliveredItems       WithdrawalItem[]    @relation("DeliveredItem")
 }
 
 model VirtualInventory {
@@ -28,13 +83,53 @@ model VirtualInventory {
   productId     Int
   quantityOwned Int     @default(0)
   user          User    @relation(fields: [userId], references: [id])
-  product       Product @relation(fields: [productId], references: [id])
+  product       Product @relation(fields: [productId], references: [id]) 
   @@id([userId, productId]) 
+}
+
+model ProductSubstitute {
+  originalProductId   Int
+  substituteProductId Int
+  priorityLevel       Int @default(1)
+  originalProduct     Product @relation("OriginalProduct", fields: [originalProductId], references: [id]) 
+  substituteProduct   Product @relation("SubstituteProduct", fields: [substituteProductId], references: [id]) 
+  @@id([originalProductId, substituteProductId])
 }
 
 model WithdrawalOrder {
   id            Int             @id @default(autoincrement())
   userId        Int
-  status        String          @default("PENDING_PAYMENT")
+  totalWeightKg Decimal         @db.Decimal(8, 2)
+  deliveryFee   Decimal         @db.Decimal(10, 2)
+  status        OrderStatus     @default(PENDING_PREPARATION)
+  pickerId      Int?            
+  driverId      Int?            
+  failureReason String?         
+  createdAt     DateTime        @default(now())
+  
+  items         WithdrawalItem[]
+  proof         DeliveryProof?  
   user          User            @relation(fields: [userId], references: [id])
+}
+
+model WithdrawalItem {
+  id                 Int     @id @default(autoincrement())
+  withdrawalOrderId  Int
+  requestedProductId Int
+  requestedQuantity  Int
+  deliveredProductId Int?
+  isSubstituted      Boolean @default(false)
+  
+  withdrawalOrder    WithdrawalOrder @relation(fields: [withdrawalOrderId], references: [id])
+  requestedProduct   Product         @relation("RequestedItem", fields: [requestedProductId], references: [id]) 
+  deliveredProduct   Product?        @relation("DeliveredItem", fields: [deliveredProductId], references: [id]) 
+}
+
+model DeliveryProof {
+  id              Int             @id @default(autoincrement())
+  orderId         Int             @unique
+  signatureBase64 String?         
+  photoUrl        String?         
+  deliveredAt     DateTime        @default(now())
+  order           WithdrawalOrder @relation(fields: [orderId], references: [id])
 }
